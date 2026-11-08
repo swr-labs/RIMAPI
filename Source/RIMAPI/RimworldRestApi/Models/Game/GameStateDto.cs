@@ -73,3 +73,14 @@ namespace RIMAPI.Models
         public int TextureCompression { get; set; } // Often hidden but accessible
     }
 }
+
+namespace RIMAPI.Models
+{
+    public class ManualPrioritiesDto
+    {
+        public bool ManualPriorities { get; set; }
+
+        // True when this call flipped the option; false for a read or a no-op set.
+        public bool Changed { get; set; }
+    }
+}
