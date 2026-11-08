@@ -133,7 +133,7 @@ namespace RIMAPI.Controllers
         public async Task GetMapGrowingZoneById(RimApiContext context)
         {
             var mapId = RequestParser.GetMapId(context);
-            var zoneId = RequestParser.GetMapId(context);
+            var zoneId = RequestParser.GetIntParameter(context, "zone_id");
             var result = _mapService.GetGrowingZoneById(mapId, zoneId);
             await context.SendJsonResponse(result);
         }
@@ -192,8 +192,8 @@ namespace RIMAPI.Controllers
         [EndpointMetadata("Get building info")]
         public async Task GetBuildingInfo(RimApiContext context)
         {
-            var mapId = RequestParser.GetMapId(context);
-            var result = _buildingService.GetBuildingInfo(mapId);
+            var buildingId = RequestParser.GetIntParameter(context, "id");
+            var result = _buildingService.GetBuildingInfo(buildingId);
             await context.SendJsonResponse(result);
         }
 

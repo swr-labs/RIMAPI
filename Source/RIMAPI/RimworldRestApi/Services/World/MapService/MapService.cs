@@ -25,6 +25,8 @@ namespace RIMAPI.Services
         {
             var map = MapHelper.GetMapByID(mapId);
             var result = FarmHelper.GetGrowingZoneById(map, zoneId);
+            if (result == null)
+                return ApiResult<GrowingZoneDto>.Fail($"Growing zone {zoneId} not found");
             return ApiResult<GrowingZoneDto>.Ok(result);
         }
 
