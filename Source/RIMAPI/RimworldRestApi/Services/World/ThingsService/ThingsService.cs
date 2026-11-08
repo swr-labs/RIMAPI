@@ -11,6 +11,9 @@ namespace RIMAPI.Services
 {
     class ThingsService : IThingsService
     {
+        // Largest batch for set-forbidden; the loop scans the map's thing list per id.
+        private const int MaxForbidBatch = 500;
+
         public ApiResult<ItemRecipesDto> GetItemRecipes(string defName)
         {
             try
@@ -229,6 +232,8 @@ namespace RIMAPI.Services
             {
                 if (request.ThingIds == null || request.ThingIds.Count == 0)
                     return ApiResult.Fail("thing_ids list is required and must not be empty");
+                if (request.ThingIds.Count > MaxForbidBatch)
+                    return ApiResult.ValidationFail($"at most {MaxForbidBatch} thing_ids per call, got {request.ThingIds.Count}");
 
                 var map = Find.Maps.FirstOrDefault(m => m.uniqueID == request.MapId);
                 if (map == null)
@@ -248,7 +253,21 @@ namespace RIMAPI.Services
                         continue;
                     }
 
+                    // SetForbidden(.., warnOnFail:false) is a silent no-op on things without a forbid
+                    // toggle (pawns, buildings, plants); report that instead of counting it as done.
+                    CompForbiddable forbiddable = thing.TryGetComp<CompForbiddable>();
+                    if (forbiddable == null)
+                    {
+                        warnings.Add($"Thing {thingId} ({thing.def.defName}) cannot be forbidden or unforbidden");
+                        continue;
+                    }
+
                     thing.SetForbidden(request.Forbidden, false);
+                    if (forbiddable.Forbidden != request.Forbidden)
+                    {
+                        warnings.Add($"Thing {thingId} ({thing.def.defName}) did not change to forbidden={request.Forbidden}");
+                        continue;
+                    }
                     updated++;
                 }
 
