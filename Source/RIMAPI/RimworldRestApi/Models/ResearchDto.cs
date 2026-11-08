@@ -46,6 +46,10 @@ namespace RIMAPI.Models
         public int Finished { get; set; }
         public int Total { get; set; }
         public float PercentComplete => Total > 0 ? Finished / (float)Total * 100 : 0;
-        public List<string> Projects { get; set; }
+
+        // Was a single "projects" list holding EVERY project of the category, which read as "finished" next to
+        // the finished count. Split so each list says what it holds; locked projects are in research/tree.
+        public List<string> FinishedProjects { get; set; } = new List<string>();
+        public List<string> AvailableProjects { get; set; } = new List<string>();
     }
 }

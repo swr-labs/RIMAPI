@@ -154,6 +154,20 @@ namespace RIMAPI.Helpers
             return projectDto;
         }
 
+        private static void AddToCategory(ResearchCategoryDto category, string defName, bool isFinished, bool isAvailable)
+        {
+            category.Total++;
+            if (isFinished)
+            {
+                category.Finished++;
+                category.FinishedProjects.Add(defName);
+            }
+            else if (isAvailable)
+            {
+                category.AvailableProjects.Add(defName);
+            }
+        }
+
         public static ResearchSummaryDto GetResearchSummary()
         {
             try
@@ -216,16 +230,10 @@ namespace RIMAPI.Helpers
                         {
                             Finished = 0,
                             Total = 0,
-                            Projects = new List<string>(), // Initialize the list
                         };
                     }
 
-                    byTechLevel[techLevelKey].Total++;
-                    if (isFinished)
-                    {
-                        byTechLevel[techLevelKey].Finished++;
-                    }
-                    byTechLevel[techLevelKey].Projects.Add(projectDef.defName);
+                    AddToCategory(byTechLevel[techLevelKey], projectDef.defName, isFinished, isAvailable);
 
                     // Group by research tab
                     string tabKey = projectDef.tab?.defName ?? "Unknown";
@@ -235,16 +243,10 @@ namespace RIMAPI.Helpers
                         {
                             Finished = 0,
                             Total = 0,
-                            Projects = new List<string>(), // Initialize the list
                         };
                     }
 
-                    byTab[tabKey].Total++;
-                    if (isFinished)
-                    {
-                        byTab[tabKey].Finished++;
-                    }
-                    byTab[tabKey].Projects.Add(projectDef.defName);
+                    AddToCategory(byTab[tabKey], projectDef.defName, isFinished, isAvailable);
                 }
 
                 return new ResearchSummaryDto
