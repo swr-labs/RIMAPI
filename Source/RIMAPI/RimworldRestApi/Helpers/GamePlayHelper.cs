@@ -77,6 +77,42 @@ namespace RIMAPI.Helpers
             Find.Scenario.PostIdeoChosen();
         }
 
+        /// <summary>
+        /// Date, season, hour and biome of the current map. Left null (with ClockError set) rather than
+        /// defaulted when unavailable, so a caller never mistakes a placeholder for the real date.
+        /// </summary>
+        private static void FillCalendarAndBiome(GameStateDto state)
+        {
+            try
+            {
+                Map map = Find.CurrentMap;
+                if (map == null)
+                {
+                    state.ClockError = "No map is currently shown (world view or no map loaded).";
+                    return;
+                }
+                state.MapId = map.uniqueID;
+                state.Year = GenLocalDate.Year(map);
+                state.Season = GenLocalDate.Season(map).ToString();
+                state.Quadrum = GenDate.Quadrum(
+                    GenDate.TickGameToAbs(Find.TickManager.TicksGame),
+                    Find.WorldGrid.LongLatOf(map.Tile).x
+                ).ToString();
+                state.DayOfSeason = GenLocalDate.DayOfSeason(map) + 1;
+                state.Hour = GenLocalDate.HourInteger(map);
+                state.Date = GenDate.DateFullStringAt(
+                    GenDate.TickGameToAbs(Find.TickManager.TicksGame),
+                    Find.WorldGrid.LongLatOf(map.Tile)
+                );
+                state.Biome = map.Biome?.defName;
+                state.BiomeLabel = map.Biome?.label;
+            }
+            catch (Exception ex)
+            {
+                state.ClockError = $"Failed to read the calendar: {ex.Message}";
+            }
+        }
+
         public static GameStateDto GetGameStateDto()
         {
             var state = new GameStateDto();
@@ -132,6 +168,8 @@ namespace RIMAPI.Helpers
             {
                 state.ColonistCount = 0;
             }
+
+            FillCalendarAndBiome(state);
 
             // Set view state
             if (Current.ProgramState == ProgramState.Playing)

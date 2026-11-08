@@ -12,6 +12,18 @@ namespace RIMAPI.Models
         public bool IsSettingsOpen { get; set; }
         public bool IsModSettingsOpen { get; set; }
         public int MapCount { get; set; }
+
+        // --- Calendar and place, read from the current map (null + ClockError when it cannot be read) ---
+        public int? MapId { get; set; }
+        public string Date { get; set; }        // e.g. "5th of Aprimay, 5501"
+        public int? Year { get; set; }
+        public string Season { get; set; }      // Spring|Summer|Fall|Winter (local to the map's hemisphere)
+        public string Quadrum { get; set; }     // Aprimay|Jugust|Septober|Decembary
+        public int? DayOfSeason { get; set; }   // 1-based, 15 days per season
+        public int? Hour { get; set; }          // local hour of day 0-23 (0-5 night, 6-17 day, 18-23 evening/night)
+        public string Biome { get; set; }       // BiomeDef defName, e.g. "TemperateForest"
+        public string BiomeLabel { get; set; }
+        public string ClockError { get; set; }
     }
 
     public class NewGameStartRequestDto
