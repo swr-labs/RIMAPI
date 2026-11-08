@@ -262,11 +262,13 @@ namespace RIMAPI.Services
                 var map = MapHelper.GetMapByID(mapId);
                 if (map == null) return ApiResult<List<ConstructionSiteDto>>.Fail($"Map {mapId} not found.");
 
+                // Player sites only: raiders/allies/ancient structures can own blueprints and frames too
+                // (e.g. a siege camp), and those must never be listed as ours or cancelled through us.
                 var sites = new List<ConstructionSiteDto>();
                 foreach (Thing t in map.listerThings.ThingsInGroup(ThingRequestGroup.Blueprint))
                 {
                     var bp = t as Blueprint;
-                    if (bp == null) continue;
+                    if (bp == null || bp.Faction != Faction.OfPlayer) continue;
                     sites.Add(new ConstructionSiteDto
                     {
                         Id = bp.thingIDNumber,
@@ -283,7 +285,7 @@ namespace RIMAPI.Services
                 foreach (Thing t in map.listerThings.ThingsInGroup(ThingRequestGroup.BuildingFrame))
                 {
                     var frame = t as Frame;
-                    if (frame == null) continue;
+                    if (frame == null || frame.Faction != Faction.OfPlayer) continue;
                     sites.Add(new ConstructionSiteDto
                     {
                         Id = frame.thingIDNumber,
@@ -327,6 +329,9 @@ namespace RIMAPI.Services
                 }
                 if (target == null)
                     return ApiResult.Fail($"No blueprint or frame with id {thingId} on map {mapId}.");
+                if (target.Faction != Faction.OfPlayer)
+                    return ApiResult.ValidationFail(
+                        $"thing {thingId} is not a player blueprint/frame (faction: {target.Faction?.Name ?? "none"}); nothing was cancelled.");
 
                 target.Destroy(DestroyMode.Cancel);
                 return ApiResult.Ok();
