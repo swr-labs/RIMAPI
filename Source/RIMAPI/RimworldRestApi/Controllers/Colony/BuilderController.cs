@@ -40,6 +40,25 @@ namespace RIMAPI.Controllers
             await context.SendJsonResponse(result);
         }
 
+        [Get("/api/v1/builder/blueprints")]
+        [EndpointMetadata("List blueprints and frames (construction sites) with ids on a map")]
+        public async Task ListConstructionSites(RimApiContext context)
+        {
+            var mapId = RequestParser.GetMapId(context);
+            var result = _builderService.ListConstructionSites(mapId);
+            await context.SendJsonResponse(result);
+        }
+
+        [Delete("/api/v1/builder/blueprint/cancel")]
+        [EndpointMetadata("Cancel one blueprint or frame by thing id (refunds delivered materials)")]
+        public async Task CancelConstructionSite(RimApiContext context)
+        {
+            var mapId = RequestParser.GetMapId(context);
+            var thingId = RequestParser.GetIntParameter(context, "thing_id");
+            var result = _builderService.CancelConstructionSite(mapId, thingId);
+            await context.SendJsonResponse(result);
+        }
+
         [Post("/api/v1/builder/check-zone")]
         public async Task CheckZone(RimApiContext context)
         {

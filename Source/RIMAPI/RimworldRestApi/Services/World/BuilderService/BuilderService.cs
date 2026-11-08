@@ -184,6 +184,22 @@ namespace RIMAPI.Services
                 int anchorZ = request.Position.Z;
                 int count = 0;
 
+                // Zero-work defs (CaravanPackingSpot, sleeping/party/meditation spots ...) have WorkToBuild = 0.
+                // Their blueprint never finishes: builders get stuck in a FinishFrame loop. Reject the whole
+                // request up front rather than placing a partial set.
+                var zeroWork = new List<string>();
+                foreach (var buildDto in request.Blueprint.Buildings)
+                {
+                    ThingDef def = DefDatabase<ThingDef>.GetNamedSilentFail(buildDto.DefName);
+                    if (def != null && def.GetStatValueAbstract(StatDefOf.WorkToBuild) <= 0f && !zeroWork.Contains(def.defName))
+                        zeroWork.Add(def.defName);
+                }
+                if (zeroWork.Count > 0)
+                {
+                    return ApiResult.ValidationFail(
+                        "zero-work defs cannot be built via blueprint (WorkToBuild = 0): " + string.Join(", ", zeroWork));
+                }
+
                 // 1. Place Floor Blueprints
                 foreach (var floorDto in request.Blueprint.Floors)
                 {
@@ -235,6 +251,89 @@ namespace RIMAPI.Services
             catch (Exception ex)
             {
                 LogApi.Error($"Blueprint Error: {ex}");
+                return ApiResult.Fail(ex.Message);
+            }
+        }
+
+        public ApiResult<List<ConstructionSiteDto>> ListConstructionSites(int mapId)
+        {
+            try
+            {
+                var map = MapHelper.GetMapByID(mapId);
+                if (map == null) return ApiResult<List<ConstructionSiteDto>>.Fail($"Map {mapId} not found.");
+
+                var sites = new List<ConstructionSiteDto>();
+                foreach (Thing t in map.listerThings.ThingsInGroup(ThingRequestGroup.Blueprint))
+                {
+                    var bp = t as Blueprint;
+                    if (bp == null) continue;
+                    sites.Add(new ConstructionSiteDto
+                    {
+                        Id = bp.thingIDNumber,
+                        Kind = "Blueprint",
+                        DefName = bp.def.defName,
+                        BuildDefName = bp.def.entityDefToBuild?.defName,
+                        Label = bp.Label,
+                        X = bp.Position.x,
+                        Z = bp.Position.z,
+                        Rotation = bp.Rotation.AsInt,
+                        StuffDefName = (bp as Blueprint_Build)?.stuffToUse?.defName,
+                    });
+                }
+                foreach (Thing t in map.listerThings.ThingsInGroup(ThingRequestGroup.BuildingFrame))
+                {
+                    var frame = t as Frame;
+                    if (frame == null) continue;
+                    sites.Add(new ConstructionSiteDto
+                    {
+                        Id = frame.thingIDNumber,
+                        Kind = "Frame",
+                        DefName = frame.def.defName,
+                        BuildDefName = frame.def.entityDefToBuild?.defName,
+                        Label = frame.Label,
+                        X = frame.Position.x,
+                        Z = frame.Position.z,
+                        Rotation = frame.Rotation.AsInt,
+                        StuffDefName = frame.Stuff?.defName,
+                        WorkDone = frame.workDone,
+                        WorkTotal = frame.WorkToBuild,
+                    });
+                }
+                return ApiResult<List<ConstructionSiteDto>>.Ok(sites);
+            }
+            catch (Exception ex)
+            {
+                LogApi.Error($"List construction sites Error: {ex}");
+                return ApiResult<List<ConstructionSiteDto>>.Fail(ex.Message);
+            }
+        }
+
+        public ApiResult CancelConstructionSite(int mapId, int thingId)
+        {
+            try
+            {
+                var map = MapHelper.GetMapByID(mapId);
+                if (map == null) return ApiResult.Fail($"Map {mapId} not found.");
+
+                // Only blueprints and frames may be cancelled through this route, never arbitrary things.
+                Thing target = null;
+                foreach (var group in new[] { ThingRequestGroup.Blueprint, ThingRequestGroup.BuildingFrame })
+                {
+                    foreach (Thing t in map.listerThings.ThingsInGroup(group))
+                    {
+                        if (t.thingIDNumber == thingId) { target = t; break; }
+                    }
+                    if (target != null) break;
+                }
+                if (target == null)
+                    return ApiResult.Fail($"No blueprint or frame with id {thingId} on map {mapId}.");
+
+                target.Destroy(DestroyMode.Cancel);
+                return ApiResult.Ok();
+            }
+            catch (Exception ex)
+            {
+                LogApi.Error($"Cancel construction site Error: {ex}");
                 return ApiResult.Fail(ex.Message);
             }
         }

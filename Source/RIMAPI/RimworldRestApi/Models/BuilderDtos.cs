@@ -10,6 +10,22 @@ namespace RIMAPI.Models
         public PositionDto PointB { get; set; }
     }
 
+    /// <summary>A player construction site: a Blueprint (not started) or a Frame (materials delivered / being built).</summary>
+    public class ConstructionSiteDto
+    {
+        public int Id { get; set; }                 // thingIDNumber; pass to builder/blueprint/cancel
+        public string Kind { get; set; }            // "Blueprint" | "Frame"
+        public string DefName { get; set; }         // the Blueprint_/Frame_ thing def
+        public string BuildDefName { get; set; }    // what it will become
+        public string Label { get; set; }
+        public int X { get; set; }
+        public int Z { get; set; }
+        public int Rotation { get; set; }
+        public string StuffDefName { get; set; }
+        public float? WorkDone { get; set; }        // frames only
+        public float? WorkTotal { get; set; }       // frames only
+    }
+
     public class PasteAreaRequestDto
     {
         public int MapId { get; set; }
