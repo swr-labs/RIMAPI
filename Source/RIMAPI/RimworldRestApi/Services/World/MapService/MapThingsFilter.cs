@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using RIMAPI.Core;
 using RIMAPI.Http;
+using RimWorld;
 using Verse;
 
 namespace RIMAPI.Services
@@ -78,13 +79,27 @@ namespace RIMAPI.Services
         {
             if (Defs != null && !Defs.Contains(thing.def.defName))
                 return false;
-            if (Categories != null && (thing.def.thingCategories == null || !thing.def.thingCategories.Any(c => Categories.Contains(c.defName))))
+            if (Categories != null && (thing.def.thingCategories == null || !thing.def.thingCategories.Any(InCategories)))
                 return false;
             if (Center != null && thing.Position.DistanceToSquared(Center.Value) > Radius * Radius)
                 return false;
             if (Rect != null && !Rect.Value.Contains(thing.Position))
                 return false;
             return true;
+        }
+
+        /// <summary>
+        /// A category matches itself and every ancestor: stone chunks are in StoneChunks (child of Chunks), so
+        /// category=Chunks must include them (live 2026-11-08: direct-only matching found 15 of ~900 chunks).
+        /// </summary>
+        private bool InCategories(ThingCategoryDef category)
+        {
+            for (ThingCategoryDef c = category; c != null; c = c.parent)
+            {
+                if (Categories.Contains(c.defName))
+                    return true;
+            }
+            return false;
         }
 
         private static HashSet<string> ParseList(string raw)
