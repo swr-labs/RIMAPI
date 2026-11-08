@@ -326,7 +326,10 @@ namespace RIMAPI.Core
             {
                 try
                 {
-                    result.Data = (T)QueryFilter.ApplyToResult(result.Data, context.Request.QueryString);
+                    var filterWarnings = new List<string>();
+                    result.Data = (T)QueryFilter.ApplyToResult(result.Data, context.Request.QueryString,
+                        context.Request.ConsumedQueryKeys, filterWarnings);
+                    result.Warnings.AddRange(filterWarnings);
                 }
                 catch (Exception ex)
                 {

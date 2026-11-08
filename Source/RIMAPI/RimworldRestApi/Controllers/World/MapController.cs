@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
 using RIMAPI.Core;
@@ -33,7 +34,13 @@ namespace RIMAPI.Controllers
         public async Task GetMapThings(RimApiContext context)
         {
             var mapId = RequestParser.GetMapId(context);
-            var result = _mapService.GetMapThings(mapId);
+            var filter = MapThingsFilter.Parse(context, out string problem);
+            if (filter == null)
+            {
+                await context.SendJsonResponse(ApiResult<List<ThingDto>>.ValidationFail(problem));
+                return;
+            }
+            var result = _mapService.GetMapThings(mapId, filter);
             await context.SendJsonResponse(result);
         }
 
@@ -62,7 +69,13 @@ namespace RIMAPI.Controllers
         public async Task GetMapPlants(RimApiContext context)
         {
             var mapId = RequestParser.GetMapId(context);
-            var result = _mapService.GetMapPlants(mapId);
+            var filter = MapThingsFilter.Parse(context, out string problem);
+            if (filter == null)
+            {
+                await context.SendJsonResponse(ApiResult<List<ThingDto>>.ValidationFail(problem));
+                return;
+            }
+            var result = _mapService.GetMapPlants(mapId, filter);
             await context.SendJsonResponse(result);
         }
 

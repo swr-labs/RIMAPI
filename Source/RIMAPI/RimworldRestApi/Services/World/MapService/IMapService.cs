@@ -12,7 +12,9 @@ namespace RIMAPI.Services
         ApiResult<MapWeatherDto> GetWeather(int mapId);
         ApiResult<List<AnimalDto>> GetMapAnimals(int mapId);
         ApiResult<List<ThingDto>> GetMapThings(int mapId);
+        ApiResult<List<ThingDto>> GetMapThings(int mapId, MapThingsFilter filter);
         ApiResult<List<ThingDto>> GetMapPlants(int mapId);
+        ApiResult<List<ThingDto>> GetMapPlants(int mapId, MapThingsFilter filter);
         ApiResult<MapCreaturesSummaryDto> GetMapCreaturesSummary(int mapId);
         ApiResult<MapFarmSummaryDto> GenerateFarmSummary(int mapId);
         ApiResult<GrowingZoneDto> GetGrowingZoneById(int mapId, int zoneId);

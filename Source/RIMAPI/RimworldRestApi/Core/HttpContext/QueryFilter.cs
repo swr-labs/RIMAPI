@@ -20,6 +20,17 @@ namespace RIMAPI.Core
         /// </summary>
         public static IEnumerable<T> Apply<T>(IEnumerable<T> items, NameValueCollection query)
         {
+            return Apply(items, query, null, null);
+        }
+
+        /// <summary>
+        /// Applies the query's field filters to the items. Keys in <paramref name="skip"/> (the route's own
+        /// parameters) are not filters. A key naming no field of the item type is reported in
+        /// <paramref name="warnings"/> and not applied: it used to drop every item, which looked like "no results".
+        /// </summary>
+        public static IEnumerable<T> Apply<T>(IEnumerable<T> items, NameValueCollection query,
+            ICollection<string> skip, List<string> warnings)
+        {
             if (items == null || query == null || query.Count == 0)
                 return items;
 
@@ -27,8 +38,13 @@ namespace RIMAPI.Core
 
             foreach (string key in query.AllKeys)
             {
-                if (string.IsNullOrEmpty(key) || IsReservedKey(key))
+                if (string.IsNullOrEmpty(key) || IsReservedKey(key) || (skip != null && skip.Contains(key)))
                     continue;
+                if (!TypeHasJsonField(typeof(T), key))
+                {
+                    warnings?.Add($"Query key '{key}' is not a field of {typeof(T).Name}; it was not applied as a filter");
+                    continue;
+                }
 
                 var value = query[key];
                 filteredItems = filteredItems.Where(item => Matches(item, key, value)).ToList();
@@ -43,6 +59,12 @@ namespace RIMAPI.Core
         /// </summary>
         public static object ApplyToResult(object result, NameValueCollection query)
         {
+            return ApplyToResult(result, query, null, null);
+        }
+
+        public static object ApplyToResult(object result, NameValueCollection query,
+            ICollection<string> skip, List<string> warnings)
+        {
             if (result == null || query == null || query.Count == 0)
                 return result;
 
@@ -52,9 +74,7 @@ namespace RIMAPI.Core
                 var itemType = GetEnumerableItemType(result.GetType());
                 if (itemType != null)
                 {
-                    var method = typeof(QueryFilter).GetMethod("Apply", BindingFlags.Public | BindingFlags.Static);
-                    var genericMethod = method.MakeGenericMethod(itemType);
-                    return genericMethod.Invoke(null, new object[] { result, query });
+                    return InvokeApply(itemType, result, query, skip, warnings);
                 }
                 return result;
             }
@@ -87,7 +107,7 @@ namespace RIMAPI.Core
                     {
                         foreach (string key in query.AllKeys)
                         {
-                            if (key != null && !key.Contains(".") && !IsReservedKey(key))
+                            if (key != null && !key.Contains(".") && !IsReservedKey(key) && (skip == null || !skip.Contains(key)))
                             {
                                 subQuery.Add(key, query[key]);
                                 hasSpecificFilter = true;
@@ -100,9 +120,7 @@ namespace RIMAPI.Core
                         var itemType = GetEnumerableItemType(prop.PropertyType);
                         if (itemType != null)
                         {
-                            var method = typeof(QueryFilter).GetMethod("Apply", BindingFlags.Public | BindingFlags.Static);
-                            var genericMethod = method.MakeGenericMethod(itemType);
-                            var filteredList = genericMethod.Invoke(null, new object[] { propValue, subQuery });
+                            var filteredList = InvokeApply(itemType, propValue, subQuery, skip, warnings);
                             
                             if (prop.CanWrite)
                             {
@@ -123,6 +141,26 @@ namespace RIMAPI.Core
             }
 
             return result;
+        }
+
+        private static object InvokeApply(Type itemType, object items, NameValueCollection query,
+            ICollection<string> skip, List<string> warnings)
+        {
+            var method = typeof(QueryFilter).GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .First(m => m.Name == "Apply" && m.GetParameters().Length == 4);
+            return method.MakeGenericMethod(itemType).Invoke(null, new object[] { items, query, skip, warnings });
+        }
+
+        /// <summary>True when the first segment of a (possibly dotted) filter key names a property of the type.</summary>
+        private static bool TypeHasJsonField(Type type, string key)
+        {
+            if (type == typeof(object))
+                return true; // untyped items: cannot tell, keep the old per-item behaviour
+            string first = key.Split('.')[0];
+            string loose = first.Replace("_", "");
+            return type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(p =>
+                ConvertToSnakeCase(p.Name).Equals(first, StringComparison.OrdinalIgnoreCase) ||
+                p.Name.Equals(loose, StringComparison.OrdinalIgnoreCase));
         }
 
         private static bool Matches(object item, string key, string value)

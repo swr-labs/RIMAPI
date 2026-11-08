@@ -103,6 +103,13 @@ namespace RIMAPI.Services
             return ApiResult<List<MapDto>>.Ok(result);
         }
 
+        public ApiResult<List<ThingDto>> GetMapThings(int mapId, MapThingsFilter filter)
+        {
+            if (MapHelper.GetMapByID(mapId) == null)
+                return ApiResult<List<ThingDto>>.Fail($"Map {mapId} not found");
+            return ApiResult<List<ThingDto>>.Ok(MapHelper.GetMapThings(mapId, filter == null || filter.IsEmpty ? null : (Func<Thing, bool>)filter.Keeps));
+        }
+
         public ApiResult<List<ThingDto>> GetMapThings(int mapId)
         {
             var result = MapHelper.GetMapThings(mapId);
@@ -113,6 +120,13 @@ namespace RIMAPI.Services
         {
             var result = MapHelper.GetMapThingsInRadius(mapId, x, z, radius);
             return ApiResult<List<ThingDto>>.Ok(result);
+        }
+
+        public ApiResult<List<ThingDto>> GetMapPlants(int mapId, MapThingsFilter filter)
+        {
+            if (MapHelper.GetMapByID(mapId) == null)
+                return ApiResult<List<ThingDto>>.Fail($"Map {mapId} not found");
+            return ApiResult<List<ThingDto>>.Ok(MapHelper.GetMapPlants(mapId, filter == null || filter.IsEmpty ? null : (Func<Thing, bool>)filter.Keeps));
         }
 
         public ApiResult<List<ThingDto>> GetMapPlants(int mapId)

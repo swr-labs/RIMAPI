@@ -29,6 +29,14 @@ namespace RIMAPI.Http
 
         public abstract NameValueCollection QueryString { get; }
 
+        /// <summary>
+        /// Query keys the route read as its own parameters (through RequestParser). The generic response filter
+        /// (QueryFilter) never treats these as item-field filters: map/things/radius?x=..&amp;z=..&amp;radius=.. used
+        /// to filter every thing out because things have no "x"/"z"/"radius" field.
+        /// </summary>
+        public System.Collections.Generic.HashSet<string> ConsumedQueryKeys { get; } =
+            new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         public abstract NameValueCollection Headers { get; }
 
         public abstract bool HasEntityBody { get; }

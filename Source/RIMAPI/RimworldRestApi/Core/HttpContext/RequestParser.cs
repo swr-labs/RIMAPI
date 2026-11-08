@@ -196,6 +196,7 @@ namespace RIMAPI.Http
             if (parameterName == null)
                 throw new ArgumentNullException(nameof(parameterName));
 
+            context.Request.ConsumedQueryKeys.Add(parameterName);
             var value = context.Request.QueryString[parameterName];
             return !string.IsNullOrEmpty(value);
         }
@@ -233,6 +234,7 @@ namespace RIMAPI.Http
             bool throwIfMissing = true
         )
         {
+            context.Request.ConsumedQueryKeys.Add(parameterName);
             string value = context.Request.QueryString[parameterName];
 
             if (throwIfMissing && string.IsNullOrEmpty(value))

@@ -236,6 +236,11 @@ namespace RIMAPI.Helpers
 
         public static List<ThingDto> GetMapThings(int mapId)
         {
+            return GetMapThings(mapId, null);
+        }
+
+        public static List<ThingDto> GetMapThings(int mapId, Func<Thing, bool> keep)
+        {
             List<ThingDto> things = new List<ThingDto>();
             try
             {
@@ -247,6 +252,7 @@ namespace RIMAPI.Helpers
 
                 things = map
                     .listerThings.ThingsInGroup(ThingRequestGroup.HaulableEver)
+                    .Where(t => keep == null || keep(t))
                     .Select(p => ResourcesHelper.ThingToDto(p))
                     .ToList();
 
@@ -261,6 +267,11 @@ namespace RIMAPI.Helpers
 
         public static List<ThingDto> GetMapPlants(int mapId)
         {
+            return GetMapPlants(mapId, null);
+        }
+
+        public static List<ThingDto> GetMapPlants(int mapId, Func<Thing, bool> keep)
+        {
             List<ThingDto> plants = new List<ThingDto>();
             try
             {
@@ -273,6 +284,7 @@ namespace RIMAPI.Helpers
                 // Get all plants (trees, bushes, crops, etc.)
                 plants = map
                     .listerThings.ThingsInGroup(ThingRequestGroup.Plant)
+                    .Where(t => keep == null || keep(t))
                     .Select(p => ResourcesHelper.ThingToDto(p))
                     .ToList();
 
