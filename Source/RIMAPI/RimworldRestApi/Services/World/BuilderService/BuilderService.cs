@@ -175,75 +175,37 @@ namespace RIMAPI.Services
         {
             try
             {
-                if (request.Blueprint == null) return ApiResult.Fail("Blueprint is null");
+                if (request?.Blueprint == null || request.Position == null)
+                    return ApiResult.ValidationFail("position and blueprint are required");
 
                 var map = MapHelper.GetMapByID(request.MapId);
                 if (map == null) return ApiResult.Fail($"Map {request.MapId} not found.");
 
+                var floors = request.Blueprint.Floors ?? new List<SavedTerrainDto>();
+                var buildings = request.Blueprint.Buildings ?? new List<SavedBuildingDto>();
                 int anchorX = request.Position.X;
                 int anchorZ = request.Position.Z;
-                int count = 0;
 
-                // Zero-work defs (CaravanPackingSpot, sleeping/party/meditation spots ...) have WorkToBuild = 0.
-                // Their blueprint never finishes: builders get stuck in a FinishFrame loop. Reject the whole
-                // request up front rather than placing a partial set.
-                var zeroWork = new List<string>();
-                foreach (var buildDto in request.Blueprint.Buildings)
-                {
-                    ThingDef def = DefDatabase<ThingDef>.GetNamedSilentFail(buildDto.DefName);
-                    if (def != null && def.GetStatValueAbstract(StatDefOf.WorkToBuild) <= 0f && !zeroWork.Contains(def.defName))
-                        zeroWork.Add(def.defName);
-                }
-                if (zeroWork.Count > 0)
-                {
-                    return ApiResult.ValidationFail(
-                        "zero-work defs cannot be built via blueprint (WorkToBuild = 0): " + string.Join(", ", zeroWork));
-                }
+                // Fail closed: validate the WHOLE request before placing anything, so an unknown def,
+                // an off-map cell or a zero-work def never yields a partial (or silently empty) build.
+                string problems = ValidateBlueprintRequest(map, anchorX, anchorZ, floors, buildings);
+                if (problems != null) return ApiResult.ValidationFail(problems + "; nothing was placed");
 
-                // 1. Place Floor Blueprints
-                foreach (var floorDto in request.Blueprint.Floors)
+                foreach (var floorDto in floors)
                 {
                     IntVec3 pos = new IntVec3(anchorX + floorDto.RelX, 0, anchorZ + floorDto.RelZ);
-                    if (pos.InBounds(map))
-                    {
-                        TerrainDef terrainDef = DefDatabase<TerrainDef>.GetNamedSilentFail(floorDto.DefName);
-                        if (terrainDef != null)
-                        {
-                            // PlaceBlueprintForBuild works for TerrainDefs too
-                            GenConstruct.PlaceBlueprintForBuild(terrainDef, pos, map, Rot4.North, Faction.OfPlayer, null);
-                            count++;
-                        }
-                    }
+                    // PlaceBlueprintForBuild works for TerrainDefs too
+                    GenConstruct.PlaceBlueprintForBuild(DefDatabase<TerrainDef>.GetNamed(floorDto.DefName), pos, map,
+                        Rot4.North, Faction.OfPlayer, null);
                 }
 
-                // 2. Place Building Blueprints
-                foreach (var buildDto in request.Blueprint.Buildings)
+                foreach (var buildDto in buildings)
                 {
                     IntVec3 pos = new IntVec3(anchorX + buildDto.RelX, 0, anchorZ + buildDto.RelZ);
-
-                    if (!pos.InBounds(map)) continue;
-
-                    // Resolve Definitions
-                    ThingDef thingDef = DefDatabase<ThingDef>.GetNamedSilentFail(buildDto.DefName);
-                    if (thingDef == null) continue;
-
-                    ThingDef stuffDef = null;
-                    if (!string.IsNullOrEmpty(buildDto.StuffDefName))
-                    {
-                        stuffDef = DefDatabase<ThingDef>.GetNamedSilentFail(buildDto.StuffDefName);
-                    }
-
-                    // Create Blueprint
-                    // Note: GenConstruct handles checking if it can be placed, checking affordance, etc.
-                    GenConstruct.PlaceBlueprintForBuild(
-                        thingDef,
-                        pos,
-                        map,
-                        new Rot4(buildDto.Rotation),
-                        Faction.OfPlayer,
-                        stuffDef
-                    );
-                    count++;
+                    ThingDef stuffDef = string.IsNullOrEmpty(buildDto.StuffDefName)
+                        ? null : DefDatabase<ThingDef>.GetNamed(buildDto.StuffDefName);
+                    GenConstruct.PlaceBlueprintForBuild(DefDatabase<ThingDef>.GetNamed(buildDto.DefName), pos, map,
+                        new Rot4(buildDto.Rotation), Faction.OfPlayer, stuffDef);
                 }
 
                 return ApiResult.Ok();
@@ -253,6 +215,51 @@ namespace RIMAPI.Services
                 LogApi.Error($"Blueprint Error: {ex}");
                 return ApiResult.Fail(ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Every reason the blueprint request cannot be placed in full, or null if it can: unknown
+        /// floor/building/stuff def names, rotations outside 0..3, cells (incl. multi-cell footprints)
+        /// outside the map, and zero-work defs (WorkToBuild = 0: the blueprint never finishes and the
+        /// builder is trapped in a FinishFrame loop).
+        /// </summary>
+        private static string ValidateBlueprintRequest(Map map, int anchorX, int anchorZ,
+            List<SavedTerrainDto> floors, List<SavedBuildingDto> buildings)
+        {
+            var unknownDefs = new SortedSet<string>();
+            var badCells = new List<string>();
+            var badRotations = new List<string>();
+            var zeroWork = new SortedSet<string>();
+
+            foreach (var f in floors)
+            {
+                if (f == null || DefDatabase<TerrainDef>.GetNamedSilentFail(f?.DefName ?? "") == null)
+                    unknownDefs.Add($"floor '{f?.DefName}'");
+                else if (!new IntVec3(anchorX + f.RelX, 0, anchorZ + f.RelZ).InBounds(map))
+                    badCells.Add($"{f.DefName}@({anchorX + f.RelX},{anchorZ + f.RelZ})");
+            }
+
+            foreach (var b in buildings)
+            {
+                ThingDef def = DefDatabase<ThingDef>.GetNamedSilentFail(b?.DefName ?? "");
+                if (def == null) { unknownDefs.Add($"building '{b?.DefName}'"); continue; }
+                if (!string.IsNullOrEmpty(b.StuffDefName) && DefDatabase<ThingDef>.GetNamedSilentFail(b.StuffDefName) == null)
+                    unknownDefs.Add($"stuff '{b.StuffDefName}'");
+                if (def.GetStatValueAbstract(StatDefOf.WorkToBuild) <= 0f) zeroWork.Add(def.defName);
+                if (b.Rotation < 0 || b.Rotation > 3) { badRotations.Add($"{def.defName}:{b.Rotation}"); continue; }
+                IntVec3 pos = new IntVec3(anchorX + b.RelX, 0, anchorZ + b.RelZ);
+                if (GenAdj.OccupiedRect(pos, new Rot4(b.Rotation), def.Size).Cells.Any(c => !c.InBounds(map)))
+                    badCells.Add($"{def.defName}@({pos.x},{pos.z})");
+            }
+
+            var parts = new List<string>();
+            if (unknownDefs.Count > 0) parts.Add("unknown defs: " + string.Join(", ", unknownDefs));
+            if (badCells.Count > 0)
+                parts.Add($"cells outside the {map.Size.x}x{map.Size.z} map: " + string.Join(", ", badCells));
+            if (badRotations.Count > 0) parts.Add("rotation must be 0..3: " + string.Join(", ", badRotations));
+            if (zeroWork.Count > 0)
+                parts.Add("zero-work defs cannot be built via blueprint (WorkToBuild = 0): " + string.Join(", ", zeroWork));
+            return parts.Count == 0 ? null : string.Join("; ", parts);
         }
 
         public ApiResult<List<ConstructionSiteDto>> ListConstructionSites(int mapId)
