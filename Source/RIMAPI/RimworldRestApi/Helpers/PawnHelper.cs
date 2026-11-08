@@ -51,9 +51,15 @@ namespace RIMAPI.Helpers
             };
         }
 
-        public static bool AssignJob(Pawn pawn, JobDef jobDef, LocalTargetInfo target, bool requestQueueing = false)
+        public static bool AssignJob(Pawn pawn, JobDef jobDef, LocalTargetInfo target, bool requestQueueing = false, LocalTargetInfo? secondTarget = null)
         {
-            Job job = JobMaker.MakeJob(jobDef, target);
+            Job job = secondTarget.HasValue && secondTarget.Value.IsValid
+                ? JobMaker.MakeJob(jobDef, target, secondTarget.Value)
+                : JobMaker.MakeJob(jobDef, target);
+            if (secondTarget.HasValue && secondTarget.Value.IsValid)
+            {
+                job.count = 1; // carry jobs (Capture/Rescue) move exactly one pawn, as the game's float menu sets
+            }
             return pawn.jobs.TryTakeOrderedJob(job, requestQueueing: requestQueueing);
         }
 
